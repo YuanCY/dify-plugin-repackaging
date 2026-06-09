@@ -183,18 +183,6 @@ repackage(){
 		echo "Injected [tool.uv] into $PYFILE"
 	}
 
-	if python3 -m pip --version &> /dev/null 2>&1; then
-		PIP_CMD="python3 -m pip"
-	elif command -v pip &> /dev/null && pip --version &> /dev/null 2>&1; then
-		PIP_CMD=pip
-	elif command -v pip3 &> /dev/null && pip3 --version &> /dev/null 2>&1; then
-		PIP_CMD=pip3
-	else
-		echo "pip not found. Install: python3 -m ensurepip --upgrade"
-		exit 1
-	fi
-	echo "✓ Using pip: ${PIP_CMD}"
-
 	# ============================================
 	# Step 1: Detect Python and platform configuration
 	# ============================================
@@ -204,13 +192,30 @@ repackage(){
 	echo "=========================================="
 
 	# Detect Python version
-	PYTHON_CMD_FOR_UV="python3"
-	PY_VERSION_FULL=$(python3 --version 2>&1 | awk '{print $2}')
+	PYTHON_CMD_FOR_UV=""
+	for PY_CANDIDATE in python3.12 python3.13 python3 python; do
+		if command -v "$PY_CANDIDATE" &> /dev/null; then
+			if "$PY_CANDIDATE" - <<'PY' &> /dev/null
+import sys
+raise SystemExit(0 if sys.version_info.major == 3 else 1)
+PY
+			then
+				PYTHON_CMD_FOR_UV="$PY_CANDIDATE"
+				break
+			fi
+		fi
+	done
+	if [ -z "$PYTHON_CMD_FOR_UV" ]; then
+		echo "✗ Error: Python 3 not found"
+		exit 1
+	fi
+
+	PY_VERSION_FULL=$($PYTHON_CMD_FOR_UV --version 2>&1 | awk '{print $2}')
 	PY_MAJOR=$(echo $PY_VERSION_FULL | cut -d. -f1)
 	PY_MINOR=$(echo $PY_VERSION_FULL | cut -d. -f2)
 	PYTHON_VERSION=$PY_VERSION_FULL
 
-	echo "Detected Python: $PYTHON_VERSION"
+	echo "Detected Python: $PYTHON_CMD_FOR_UV ($PYTHON_VERSION)"
 
 	# If Python is 3.14+, try to use 3.12 or 3.13 for better compatibility
 	if [ "$PY_MAJOR" -eq 3 ] && [ "$PY_MINOR" -ge 14 ]; then
@@ -229,6 +234,18 @@ repackage(){
 	else
 		echo "✓ Python version $PYTHON_VERSION is compatible"
 	fi
+
+	if ${PYTHON_CMD_FOR_UV} -m pip --version &> /dev/null 2>&1; then
+		PIP_CMD="${PYTHON_CMD_FOR_UV} -m pip"
+	elif command -v pip &> /dev/null && pip --version &> /dev/null 2>&1; then
+		PIP_CMD=pip
+	elif command -v pip3 &> /dev/null && pip3 --version &> /dev/null 2>&1; then
+		PIP_CMD=pip3
+	else
+		echo "pip not found. Install: ${PYTHON_CMD_FOR_UV} -m ensurepip --upgrade"
+		exit 1
+	fi
+	echo "✓ Using pip: ${PIP_CMD}"
 
 	# Extract Python major.minor for uv
 	UV_PY_VERSION=$($PYTHON_CMD_FOR_UV - <<'PY'
@@ -420,6 +437,29 @@ install_unzip(){
 	fi
 }
 
+build_pip_platform_options() {
+	local PLATFORM="$1"
+	local OPTIONS=""
+
+	if [[ "$PLATFORM" =~ ^manylinux_2_([0-9]+)_(.+)$ ]]; then
+		local GLIBC_MINOR="${BASH_REMATCH[1]}"
+		local ARCH="${BASH_REMATCH[2]}"
+		local MINOR
+
+		for (( MINOR=GLIBC_MINOR; MINOR>=17; MINOR-- )); do
+			OPTIONS="${OPTIONS} --platform manylinux_2_${MINOR}_${ARCH}"
+		done
+		OPTIONS="${OPTIONS} --platform manylinux2014_${ARCH}"
+	elif [[ "$PLATFORM" =~ ^manylinux2014_(.+)$ ]]; then
+		local ARCH="${BASH_REMATCH[1]}"
+		OPTIONS="--platform manylinux_2_17_${ARCH} --platform manylinux2014_${ARCH}"
+	else
+		OPTIONS="--platform ${PLATFORM}"
+	fi
+
+	echo "${OPTIONS} --only-binary=:all:"
+}
+
 print_usage() {
 	echo "usage: $0 [-p platform] [-s package_suffix] [-R] {market|github|local}"
 	echo "-p platform: python packages' platform. Using for crossing repacking.
@@ -432,7 +472,7 @@ print_usage() {
 
 while getopts "p:s:R" opt; do
 	case "$opt" in
-		p) RAW_PLATFORM="${OPTARG}"; PIP_PLATFORM_OPTIONS="--platform ${OPTARG} --only-binary=:all:" ;;
+		p) RAW_PLATFORM="${OPTARG}"; PIP_PLATFORM_OPTIONS="$(build_pip_platform_options "${OPTARG}")" ;;
 		s) PACKAGE_SUFFIX="${OPTARG}" ;;
 		R) PRERELEASE_ALLOW=1 ;;
 		*) print_usage; exit 1 ;;
