@@ -14,7 +14,7 @@
 1.change param in dockerfile
 
 ```dockerfile
-CMD ["./plugin_repackaging.sh", "-p", "manylinux_2_17_x86_64", "market", "antv", "visualization", "0.1.7"] 
+CMD ["./plugin_repackaging.sh", "-p", "manylinux2014_x86_64", "market", "antv", "visualization", "0.1.7"]
 ```
 
 2.build
@@ -37,7 +37,7 @@ docker run -v %cd%:/app dify-plugin-repackaging
 
 linux
 ```bash
-docker run -v $(pwd):/app dify-plugin-repackaging ./plugin_repackaging.sh -p manylinux_2_17_x86_64 market antv visualization 0.1.7
+docker run -v $(pwd):/app dify-plugin-repackaging ./plugin_repackaging.sh -p manylinux2014_x86_64 market antv visualization 0.1.7
 ```
 
 ### Prerequisites
@@ -145,4 +145,3 @@ Visit the Dify platform's plugin management page, choose Local Package File to c
 ### Star history
 
 [![Star History Chart](https://api.star-history.com/svg?repos=junjiem/dify-plugin-repackaging&type=Date)](https://star-history.com/#junjiem/dify-plugin-repackaging&Date)
-

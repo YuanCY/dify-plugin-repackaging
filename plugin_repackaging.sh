@@ -8,6 +8,9 @@ DEFAULT_PIP_MIRROR_URL=https://mirrors.aliyun.com/pypi/simple
 GITHUB_API_URL="${GITHUB_API_URL:-$DEFAULT_GITHUB_API_URL}"
 MARKETPLACE_API_URL="${MARKETPLACE_API_URL:-$DEFAULT_MARKETPLACE_API_URL}"
 PIP_MIRROR_URL="${PIP_MIRROR_URL:-$DEFAULT_PIP_MIRROR_URL}"
+PIP_INDEX_URL="${PIP_INDEX_URL:-$PIP_MIRROR_URL}"
+UV_DEFAULT_INDEX="${UV_DEFAULT_INDEX:-$PIP_MIRROR_URL}"
+export PIP_INDEX_URL UV_DEFAULT_INDEX
 
 CURR_DIR=`dirname $0`
 cd $CURR_DIR || exit 1
@@ -151,7 +154,8 @@ repackage(){
 		echo "⚠ Warning: No pyproject.toml or requirements.txt found"
 	fi
 
-	# Inject [tool.uv] config into pyproject.toml (runtime will use local wheels offline)
+	# Inject [tool.uv] config into pyproject.toml after online resolution.
+	# Runtime will use local wheels offline, but uv lock/export still needs the index.
 	inject_uv_into_pyproject() {
 		local PYFILE="$1"
 		[ -f "$PYFILE" ] || return 0
@@ -231,6 +235,12 @@ import sys
 print(f"{sys.version_info.major}.{sys.version_info.minor}")
 PY
 )
+	local PIP_TARGET_OPTIONS=""
+	if [ -n "$PIP_PLATFORM" ]; then
+		local PY_ABI_TAG="cp${UV_PY_VERSION//./}"
+		PIP_TARGET_OPTIONS="--python-version ${UV_PY_VERSION} --implementation cp --abi ${PY_ABI_TAG} --abi abi3 --abi none"
+		echo "Pip target tags: python=${UV_PY_VERSION}, implementation=cp, abi=${PY_ABI_TAG}/abi3/none"
+	fi
 
 	# Determine uv target platform to avoid cross-platform dependency conflicts
 	local UV_PLATFORM=""
@@ -283,10 +293,9 @@ PY
 	echo "Step 2: Processing dependencies"
 	echo "=========================================="
 
-	# Inject [tool.uv] config to enable offline wheel usage
 	if [ -f "pyproject.toml" ]; then
-		echo "Found pyproject.toml, injecting [tool.uv] configuration..."
-		inject_uv_into_pyproject "pyproject.toml"
+		echo "Found pyproject.toml"
+		echo "UV index URL: ${UV_DEFAULT_INDEX}"
 	fi
 
 	if [ -f "pyproject.toml" ] && [ ! -f "requirements.txt" ]; then
@@ -333,8 +342,8 @@ PY
 
 	mkdir -p ./wheels
 	echo "Downloading wheels to ./wheels/..."
-	${PIP_CMD} download ${PIP_PLATFORM} --prefer-binary -r requirements.txt -d ./wheels \
-		--index-url ${PIP_MIRROR_URL} --trusted-host mirrors.aliyun.com
+	${PIP_CMD} download ${PIP_PLATFORM} ${PIP_TARGET_OPTIONS} --prefer-binary -r requirements.txt -d ./wheels \
+		--index-url "${PIP_MIRROR_URL}" --trusted-host mirrors.aliyun.com
 	if [[ $? -ne 0 ]]; then
 		echo "✗ Error: Failed to download dependencies"
 		exit 1
@@ -359,6 +368,11 @@ PY
 		[ -f "$IGNORE_PATH" ] && sed -i ".bak" '/^wheels\//d' "${IGNORE_PATH}" && rm -f "${IGNORE_PATH}.bak"
 	fi
 	echo "✓ requirements.txt updated for offline mode"
+
+	if [ -f "pyproject.toml" ]; then
+		echo "Injecting [tool.uv] offline configuration..."
+		inject_uv_into_pyproject "pyproject.toml"
+	fi
 
 	# ============================================
 	# Step 5: Package the plugin
