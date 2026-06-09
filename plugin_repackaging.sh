@@ -11,6 +11,7 @@ PIP_MIRROR_URL="${PIP_MIRROR_URL:-$DEFAULT_PIP_MIRROR_URL}"
 PIP_INDEX_URL="${PIP_INDEX_URL:-$PIP_MIRROR_URL}"
 UV_DEFAULT_INDEX="${UV_DEFAULT_INDEX:-$PIP_MIRROR_URL}"
 export PIP_INDEX_URL UV_DEFAULT_INDEX
+unset PIP_PLATFORM PIP_PYTHON_VERSION PIP_ABI PIP_IMPLEMENTATION
 
 CURR_DIR=`dirname $0`
 cd $CURR_DIR || exit 1
@@ -26,7 +27,7 @@ if [[ "arm64" == "$ARCH_NAME" || "aarch64" == "$ARCH_NAME" ]]; then
 fi
 
 # Cross packaging / resolution controls
-PIP_PLATFORM=""
+PIP_PLATFORM_OPTIONS=""
 RAW_PLATFORM=""    # raw value from -p, e.g. manylinux2014_x86_64
 PACKAGE_SUFFIX="offline"
 PRERELEASE_ALLOW=0
@@ -236,7 +237,7 @@ print(f"{sys.version_info.major}.{sys.version_info.minor}")
 PY
 )
 	local PIP_TARGET_OPTIONS=""
-	if [ -n "$PIP_PLATFORM" ]; then
+	if [ -n "$PIP_PLATFORM_OPTIONS" ]; then
 		local PY_ABI_TAG="cp${UV_PY_VERSION//./}"
 		PIP_TARGET_OPTIONS="--python-version ${UV_PY_VERSION} --implementation cp --abi ${PY_ABI_TAG} --abi abi3 --abi none"
 		echo "Pip target tags: python=${UV_PY_VERSION}, implementation=cp, abi=${PY_ABI_TAG}/abi3/none"
@@ -338,11 +339,11 @@ PY
 	echo "Step 3: Downloading dependencies"
 	echo "=========================================="
 	echo "Index URL: ${PIP_MIRROR_URL}"
-	[ -n "$PIP_PLATFORM" ] && echo "Platform: ${RAW_PLATFORM}"
+	[ -n "$PIP_PLATFORM_OPTIONS" ] && echo "Platform: ${RAW_PLATFORM}"
 
 	mkdir -p ./wheels
 	echo "Downloading wheels to ./wheels/..."
-	${PIP_CMD} download ${PIP_PLATFORM} ${PIP_TARGET_OPTIONS} --prefer-binary -r requirements.txt -d ./wheels \
+	${PIP_CMD} download ${PIP_PLATFORM_OPTIONS} ${PIP_TARGET_OPTIONS} --prefer-binary -r requirements.txt -d ./wheels \
 		--index-url "${PIP_MIRROR_URL}" --trusted-host mirrors.aliyun.com
 	if [[ $? -ne 0 ]]; then
 		echo "✗ Error: Failed to download dependencies"
@@ -431,7 +432,7 @@ print_usage() {
 
 while getopts "p:s:R" opt; do
 	case "$opt" in
-		p) RAW_PLATFORM="${OPTARG}"; PIP_PLATFORM="--platform ${OPTARG} --only-binary=:all:" ;;
+		p) RAW_PLATFORM="${OPTARG}"; PIP_PLATFORM_OPTIONS="--platform ${OPTARG} --only-binary=:all:" ;;
 		s) PACKAGE_SUFFIX="${OPTARG}" ;;
 		R) PRERELEASE_ALLOW=1 ;;
 		*) print_usage; exit 1 ;;

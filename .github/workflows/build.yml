@@ -37,10 +37,10 @@ jobs:
       - name: Resolve platform
         run: |
           if [ "${{ inputs.platform_arm }}" = "true" ]; then
-            echo "PIP_PLATFORM=manylinux2014_aarch64" >> "$GITHUB_ENV"
+            echo "TARGET_PLATFORM=manylinux2014_aarch64" >> "$GITHUB_ENV"
             echo "PACKAGE_SUFFIX=offline-arm" >> "$GITHUB_ENV"
           else
-            echo "PIP_PLATFORM=manylinux2014_x86_64" >> "$GITHUB_ENV"
+            echo "TARGET_PLATFORM=manylinux2014_x86_64" >> "$GITHUB_ENV"
             echo "PACKAGE_SUFFIX=offline" >> "$GITHUB_ENV"
           fi
 
@@ -61,7 +61,7 @@ jobs:
       - name: Run plugin repackaging script
         run: |
           ./plugin_repackaging.sh \
-          -p "$PIP_PLATFORM" \
+          -p "$TARGET_PLATFORM" \
           -s "$PACKAGE_SUFFIX" \
           market \
           "${{ github.event.inputs.plugin_author }}" \
