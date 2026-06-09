@@ -28,7 +28,7 @@ fi
 
 # Cross packaging / resolution controls
 PIP_PLATFORM_OPTIONS=""
-RAW_PLATFORM=""    # raw value from -p, e.g. manylinux2014_x86_64
+RAW_PLATFORM=""    # raw value from -p, e.g. manylinux_2_28_x86_64
 PACKAGE_SUFFIX="offline"
 PRERELEASE_ALLOW=0
 
@@ -423,7 +423,7 @@ install_unzip(){
 print_usage() {
 	echo "usage: $0 [-p platform] [-s package_suffix] [-R] {market|github|local}"
 	echo "-p platform: python packages' platform. Using for crossing repacking.
-        For example: -p manylinux2014_x86_64 or -p manylinux2014_aarch64"
+        For example: -p manylinux_2_28_x86_64 or -p manylinux_2_28_aarch64"
 	echo "-s package_suffix: The suffix name of the output offline package.
         For example: -s linux-amd64 or -s linux-arm64"
 	echo "-R: allow pre-release versions during uv resolution (maps to --prerelease=allow)"
